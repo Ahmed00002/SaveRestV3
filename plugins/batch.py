@@ -5,7 +5,7 @@
 import os, re, time, asyncio, json, asyncio 
 from pyrogram import Client, filters
 from pyrogram.types import Message
-from pyrogram.errors import UserNotParticipant
+from pyrogram.errors import UserNotParticipant, FloodWait
 from config import API_ID, API_HASH, LOG_GROUP, STRING, FORCE_SUB, FREEMIUM_LIMIT, PREMIUM_LIMIT
 from utils.func import get_user_data, screenshot, thumbnail, get_video_metadata
 from utils.func import get_user_data_key, process_text_with_rules, is_premium_user, E
@@ -79,7 +79,8 @@ ACTIVE_USERS = load_active_users()
 
 async def upd_dlg(c):
     try:
-        async for _ in c.get_dialogs(limit=100): pass
+        async for _ in c.get_dialogs(limit=100): 
+            pass
         return True
     except Exception as e:
         print(f'Failed to update dialogs: {e}')
@@ -105,8 +106,10 @@ async def get_msg(c, u, i, d, lt):
                     emp[i] = getattr(xm, "empty", False)
                     if emp[i]:
                         print(f"Not fetched by {c.me.username}")
-                        try: await u.join_chat(i)
-                        except: pass
+                        try: 
+                            await u.join_chat(i)
+                        except: 
+                            pass
                         xm = await u.get_messages((await u.get_chat(f"@{i}")).id, d)
                     
                     return xm                   
@@ -116,15 +119,15 @@ async def get_msg(c, u, i, d, lt):
         else:
             if u:
                 try:
-                    async for _ in u.get_dialogs(limit=50): pass
+                    async for _ in u.get_dialogs(limit=50): 
+                        pass
                     
                     # Try with -100 prefix first
                     if str(i).startswith('-100'):
                         chat_id_100 = i
-                        # For - prefix, remove -100 and add just -
                         base_id = str(i)[4:]  # Remove -100
                         chat_id_dash = f"-{base_id}"
-                    elif i.isdigit():
+                    elif str(i).isdigit():
                         chat_id_100 = f"-100{i}"
                         chat_id_dash = f"-{i}"
                     else:
@@ -149,7 +152,8 @@ async def get_msg(c, u, i, d, lt):
                     
                     # Final fallback - refresh dialogs and try original
                     try:
-                        async for _ in u.get_dialogs(limit=200): pass
+                        async for _ in u.get_dialogs(limit=200): 
+                            pass
                         result = await u.get_messages(i, d)
                         if result and not getattr(result, "empty", False):
                             return result
@@ -168,52 +172,136 @@ async def get_msg(c, u, i, d, lt):
 
 
 async def get_ubot(uid):
+    """
+    User-er set kora bot token diye ekta bot client start kore.
+    FloodWait hole crash korbe na, just None return korbe.
+    """
     bt = await get_user_data_key(uid, "bot_token", None)
-    if not bt: return None
-    if uid in UB: return UB.get(uid)
-    try:
-        bot = Client(f"user_{uid}", bot_token=bt, api_id=API_ID, api_hash=API_HASH)
-        await bot.start()
-        UB[uid] = bot
-        return bot
-    except Exception as e:
-        print(f"Error starting bot for user {uid}: {e}")
+    if not bt:
         return None
 
+    # cache-a already thakle direct oita use
+    if uid in UB:
+        return UB.get(uid)
+
+    try:
+        bot = Client(
+            f"user_{uid}",
+            bot_token=bt,
+            api_id=API_ID,
+            api_hash=API_HASH
+        )
+
+        try:
+            await bot.start()
+        except FloodWait as e:
+            # Telegram bolse: beshi bar authorize korte geso, e.value second wait korte hobe
+            wait_for = getattr(e, "value", None) or getattr(e, "x", None) or 0
+            print(f"[get_ubot] FloodWait for user {uid}: wait {wait_for} seconds (ImportBotAuthorizationRequest)")
+            # ekhane chaile user ke message o dite paro je "Try again later"
+            return None
+
+        UB[uid] = bot
+        print(f"[get_ubot] Bot client started for user {uid}")
+        return bot
+
+    except Exception as e:
+        print(f"[get_ubot] Error starting bot for user {uid}: {e}")
+        return None
+
+
 async def get_uclient(uid):
+    """
+    User session_string theke ekta user client banay.
+    FloodWait/other error hole, jodi possible hoy tahole fallback hishebe:
+      - user-er bot client (ubot)
+      - global Y client
+    return kore.
+    """
     ud = await get_user_data(uid)
     ubot = UB.get(uid)
     cl = UC.get(uid)
-    if cl: return cl
-    if not ud: return ubot if ubot else None
-    xxx = ud.get('session_string')
+
+    # cache thakle direct return
+    if cl:
+        return cl
+
+    # user data na thakle, atleast ubot / Y pathiye dewa jay
+    if not ud:
+        return ubot if ubot else Y
+
+    xxx = ud.get("session_string")
     if xxx:
         try:
             ss = dcs(xxx)
-            gg = Client(f'{uid}_client', api_id=API_ID, api_hash=API_HASH, device_model="v3saver", session_string=ss)
-            await gg.start()
+            gg = Client(
+                f"{uid}_client",
+                api_id=API_ID,
+                api_hash=API_HASH,
+                device_model="v3saver",
+                session_string=ss
+            )
+            try:
+                await gg.start()
+            except FloodWait as e:
+                wait_for = getattr(e, "value", None) or getattr(e, "x", None) or 0
+                print(f"[get_uclient] FloodWait for user client {uid}: wait {wait_for} seconds")
+                # FloodWait hole new client use korte parbo na, tai fallback
+                return ubot if ubot else Y
+
             await upd_dlg(gg)
             UC[uid] = gg
+            print(f"[get_uclient] User client started for user {uid}")
             return gg
-        except Exception as e:
-            print(f'User client error: {e}')
-            return ubot if ubot else Y
-    return Y
 
+        except Exception as e:
+            print(f"[get_uclient] User client error for {uid}: {e}")
+            # jodi userclient fail kore, ubot / Y fallback
+            return ubot if ubot else Y
+
+    # session_string e nai, fallback
+    return ubot if ubot else Y
+
+
+# 🔥 Nice visual transfer progress
 async def prog(c, t, C, h, m, st):
     global P
     p = c / t * 100
     interval = 10 if t >= 100 * 1024 * 1024 else 20 if t >= 50 * 1024 * 1024 else 30 if t >= 10 * 1024 * 1024 else 50
     step = int(p // interval) * interval
+
     if m not in P or P[m] != step or p >= 100:
         P[m] = step
+
         c_mb = c / (1024 * 1024)
         t_mb = t / (1024 * 1024)
-        bar = '🟢' * int(p / 10) + '🔴' * (10 - int(p / 10))
+
+        # bar blocks
+        filled_blocks = int(p // 10)
+        empty_blocks = 10 - filled_blocks
+        bar_blocks = "█" * filled_blocks + "░" * empty_blocks
+
         speed = c / (time.time() - st) / (1024 * 1024) if time.time() > st else 0
-        eta = time.strftime('%M:%S', time.gmtime((t - c) / (speed * 1024 * 1024))) if speed > 0 else '00:00'
-        await C.edit_message_text(h, m, f"__**Pyro Handler...**__\n\n{bar}\n\n⚡**__Completed__**: {c_mb:.2f} MB / {t_mb:.2f} MB\n📊 **__Done__**: {p:.2f}%\n🚀 **__Speed__**: {speed:.2f} MB/s\n⏳ **__ETA__**: {eta}\n\n**__Powered by Team SPY__**")
-        if p >= 100: P.pop(m, None)
+        eta_secs = (t - c) / (speed * 1024 * 1024) if speed > 0 else 0
+        eta = time.strftime('%M:%S', time.gmtime(eta_secs)) if eta_secs > 0 else '00:00'
+
+        text = (
+            "📽 **Media Transfer**\n"
+            "━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"`[{bar_blocks}]`  **{p:.1f}%**\n\n"
+            f"📦 **Size:** {c_mb:.2f} MB / {t_mb:.2f} MB\n"
+            f"🚀 **Speed:** {speed:.2f} MB/s\n"
+            f"⏳ **ETA:** {eta}\n\n"
+            "_Please keep this chat open while processing…_"
+        )
+
+        try:
+            await C.edit_message_text(h, m, text)
+        except Exception as e:
+            print(f"prog edit error: {e}")
+
+        if p >= 100: 
+            P.pop(m, None)
 
 async def send_direct(c, m, tcid, ft=None, rtmid=None):
     try:
@@ -260,11 +348,11 @@ async def process_msg(c, u, m, d, lt, uid, i):
             
             if lt == 'public' and not emp.get(i, False):
                 await send_direct(c, m, tcid, ft, rtmid)
-                return 'Sent directly.'
+                return '✅ Sent directly without downloading.'
             
             st = time.time()
-            p = await c.send_message(d, 'Downloading...')
-
+            p = await c.send_message(d, '📥 Downloading media, please wait...')
+            
             c_name = f"{time.time()}"
             if m.video:
                 file_name = m.video.file_name
@@ -288,10 +376,10 @@ async def process_msg(c, u, m, d, lt, uid, i):
             f = await u.download_media(m, file_name=c_name, progress=prog, progress_args=(c, d, p.id, st))
             
             if not f:
-                await c.edit_message_text(d, p.id, 'Failed.')
+                await c.edit_message_text(d, p.id, '❌ Download failed. Please try again.')
                 return 'Failed.'
             
-            await c.edit_message_text(d, p.id, 'Renaming...')
+            await c.edit_message_text(d, p.id, '✏️ Renaming file...')
             if (
                 (m.video and m.video.file_name) or
                 (m.audio and m.audio.file_name) or
@@ -304,37 +392,56 @@ async def process_msg(c, u, m, d, lt, uid, i):
             
             if fsize > 2 and Y:
                 st = time.time()
-                await c.edit_message_text(d, p.id, 'File is larger than 2GB. Using alternative method...')
+                await c.edit_message_text(d, p.id, '⚠️ File is larger than 2GB.\nUsing alternative upload method...')
                 await upd_dlg(Y)
                 mtd = await get_video_metadata(f)
                 dur, h, w = mtd['duration'], mtd['width'], mtd['height']
                 th = await screenshot(f, dur, d)
                 
-                send_funcs = {'video': Y.send_video, 'video_note': Y.send_video_note, 
-                            'voice': Y.send_voice, 'audio': Y.send_audio, 
-                            'photo': Y.send_photo, 'document': Y.send_document}
+                send_funcs = {
+                    'video': Y.send_video, 
+                    'video_note': Y.send_video_note, 
+                    'voice': Y.send_voice, 
+                    'audio': Y.send_audio, 
+                    'photo': Y.send_photo, 
+                    'document': Y.send_document
+                }
                 
                 for mtype, func in send_funcs.items():
-                    if f.endswith('.mp4'): mtype = 'video'
+                    if f.endswith('.mp4'): 
+                        mtype = 'video'
                     if getattr(m, mtype, None):
-                        sent = await func(LOG_GROUP, f, thumb=th if mtype == 'video' else None, 
-                                        duration=dur if mtype == 'video' else None,
-                                        height=h if mtype == 'video' else None,
-                                        width=w if mtype == 'video' else None,
-                                        caption=ft if m.caption and mtype not in ['video_note', 'voice'] else None, 
-                                        reply_to_message_id=rtmid, progress=prog, progress_args=(c, d, p.id, st))
+                        sent = await func(
+                            LOG_GROUP,
+                            f,
+                            thumb=th if mtype == 'video' else None, 
+                            duration=dur if mtype == 'video' else None,
+                            height=h if mtype == 'video' else None,
+                            width=w if mtype == 'video' else None,
+                            caption=ft if m.caption and mtype not in ['video_note', 'voice'] else None, 
+                            reply_to_message_id=rtmid,
+                            progress=prog,
+                            progress_args=(c, d, p.id, st)
+                        )
                         break
                 else:
-                    sent = await Y.send_document(LOG_GROUP, f, thumb=th, caption=ft if m.caption else None,
-                                                reply_to_message_id=rtmid, progress=prog, progress_args=(c, d, p.id, st))
+                    sent = await Y.send_document(
+                        LOG_GROUP,
+                        f,
+                        thumb=th,
+                        caption=ft if m.caption else None,
+                        reply_to_message_id=rtmid,
+                        progress=prog,
+                        progress_args=(c, d, p.id, st)
+                    )
                 
                 await c.copy_message(d, LOG_GROUP, sent.id)
                 os.remove(f)
                 await c.delete_messages(d, p.id)
                 
-                return 'Done (Large file).'
+                return 'Done (large file).'
             
-            await c.edit_message_text(d, p.id, 'Uploading...')
+            await c.edit_message_text(d, p.id, '📤 Uploading to your chat...')
             st = time.time()
 
             try:
@@ -345,43 +452,83 @@ async def process_msg(c, u, m, d, lt, uid, i):
                     mtd = await get_video_metadata(f)
                     dur, h, w = mtd['duration'], mtd['width'], mtd['height']
                     th = await screenshot(f, dur, d)
-                    await c.send_video(tcid, video=f, caption=ft if m.caption else None, 
-                                    thumb=th, width=w, height=h, duration=dur, 
-                                    progress=prog, progress_args=(c, d, p.id, st), 
-                                    reply_to_message_id=rtmid)
+                    await c.send_video(
+                        tcid,
+                        video=f,
+                        caption=ft if m.caption else None, 
+                        thumb=th,
+                        width=w,
+                        height=h,
+                        duration=dur, 
+                        progress=prog,
+                        progress_args=(c, d, p.id, st), 
+                        reply_to_message_id=rtmid
+                    )
                 elif m.video_note:
-                    await c.send_video_note(tcid, video_note=f, progress=prog, 
-                                        progress_args=(c, d, p.id, st), reply_to_message_id=rtmid)
+                    await c.send_video_note(
+                        tcid,
+                        video_note=f,
+                        progress=prog, 
+                        progress_args=(c, d, p.id, st),
+                        reply_to_message_id=rtmid
+                    )
                 elif m.voice:
-                    await c.send_voice(tcid, f, progress=prog, progress_args=(c, d, p.id, st), 
-                                    reply_to_message_id=rtmid)
+                    await c.send_voice(
+                        tcid,
+                        f,
+                        progress=prog,
+                        progress_args=(c, d, p.id, st), 
+                        reply_to_message_id=rtmid
+                    )
                 elif m.sticker:
                     await c.send_sticker(tcid, m.sticker.file_id, reply_to_message_id=rtmid)
                 elif m.audio or (m.document and file_ext in audio_extensions):
-                    await c.send_audio(tcid, audio=f, caption=ft if m.caption else None, 
-                                    thumb=th, progress=prog, progress_args=(c, d, p.id, st), 
-                                    reply_to_message_id=rtmid)
+                    await c.send_audio(
+                        tcid,
+                        audio=f,
+                        caption=ft if m.caption else None, 
+                        thumb=th,
+                        progress=prog,
+                        progress_args=(c, d, p.id, st), 
+                        reply_to_message_id=rtmid
+                    )
                 elif m.photo:
-                    await c.send_photo(tcid, photo=f, caption=ft if m.caption else None, 
-                                    progress=prog, progress_args=(c, d, p.id, st), 
-                                    reply_to_message_id=rtmid)
+                    await c.send_photo(
+                        tcid,
+                        photo=f,
+                        caption=ft if m.caption else None, 
+                        progress=prog,
+                        progress_args=(c, d, p.id, st), 
+                        reply_to_message_id=rtmid
+                    )
                 elif m.document:
-                    await c.send_document(tcid, document=f, caption=ft if m.caption else None, 
-                                        progress=prog, progress_args=(c, d, p.id, st), 
-                                        reply_to_message_id=rtmid)
+                    await c.send_document(
+                        tcid,
+                        document=f,
+                        caption=ft if m.caption else None, 
+                        progress=prog,
+                        progress_args=(c, d, p.id, st), 
+                        reply_to_message_id=rtmid
+                    )
                 else:
-                    await c.send_document(tcid, document=f, caption=ft if m.caption else None, 
-                                        progress=prog, progress_args=(c, d, p.id, st), 
-                                        reply_to_message_id=rtmid)
+                    await c.send_document(
+                        tcid,
+                        document=f,
+                        caption=ft if m.caption else None, 
+                        progress=prog,
+                        progress_args=(c, d, p.id, st), 
+                        reply_to_message_id=rtmid
+                    )
             except Exception as e:
-                await c.edit_message_text(d, p.id, f'Upload failed: {str(e)[:30]}')
-                if os.path.exists(f): os.remove(f)
+                await c.edit_message_text(d, p.id, f'❌ Upload failed: {str(e)[:30]}')
+                if os.path.exists(f): 
+                    os.remove(f)
                 return 'Failed.'
             
             os.remove(f)
             await c.delete_messages(d, p.id)
             
-            return 'Done.'
+            return '✅ Done.'
             
         elif m.text:
             await c.send_message(tcid, text=m.text.markdown, reply_to_message_id=rtmid)
@@ -389,131 +536,213 @@ async def process_msg(c, u, m, d, lt, uid, i):
     except Exception as e:
         return f'Error: {str(e)[:50]}'
         
+
 @X.on_message(filters.command(['batch', 'single']))
 async def process_cmd(c, m):
     uid = m.from_user.id
     cmd = m.command[0]
+
+    # 🔹 Premium flag & badge
+    is_prem = await is_premium_user(uid)
+    badge = "💎 Premium User" if is_prem else "🆓 Free User"
     
-    if FREEMIUM_LIMIT == 0 and not await is_premium_user(uid):
-        await m.reply_text("This bot does not provide free servies, get subscription from OWNER")
+    if FREEMIUM_LIMIT == 0 and not is_prem:
+        await m.reply_text(
+            "🚫 *Free plan unavailable*\n\n"
+            "This bot does not provide free services.\n"
+            "Please contact the *OWNER* to get a subscription."
+        )
         return
     
-    if await sub(c, m) == 1: return
-    pro = await m.reply_text('Doing some checks hold on...')
+    if await sub(c, m) == 1: 
+        return
+
+    pro = await m.reply_text(f"{badge}\n\n⚙️ Running system checks...")
     
     if is_user_active(uid):
-        await pro.edit('You have an active task. Use /stop to cancel it.')
+        await pro.edit(
+            "⚠️ *〘 Active Task Detected 〙*\n\n"
+            "🚫 Use /stop to cancel the current task before starting a new one",
+            parse_mode="MarkdownV2",
+        )
         return
     
     ubot = await get_ubot(uid)
     if not ubot:
-        await pro.edit('Add your bot with /setbot first')
+        await pro.edit("🤖 Please add your bot first using /setbot")
         return
     
-    Z[uid] = {'step': 'start' if cmd == 'batch' else 'start_single'}
-    await pro.edit(f'Send {"start link..." if cmd == "batch" else "link you to process"}.')
+    Z[uid] = {
+        'step': 'start' if cmd == 'batch' else 'start_single',
+        'premium': is_prem
+    }
+
+    await pro.edit(
+        f"{badge}\n\n"
+        + (
+            "🔗 Please send the start message link for batch processing."
+            if cmd == "batch"
+            else "🔗 Please send the message link you want to process."
+        )
+    )
+
 
 @X.on_message(filters.command(['cancel', 'stop']))
 async def cancel_cmd(c, m):
     uid = m.from_user.id
     if is_user_active(uid):
         if await request_batch_cancel(uid):
-            await m.reply_text('Cancellation requested. The current batch will stop after the current download completes.')
+            await m.reply_text(
+                "🛑 Cancellation requested.\n"
+                "The current batch will stop after the ongoing task finishes."
+            )
         else:
-            await m.reply_text('Failed to request cancellation. Please try again.')
+            await m.reply_text(
+                "⚠️ Failed to request cancellation.\n"
+                "Please try again."
+            )
     else:
-        await m.reply_text('No active batch process found.')
+        await m.reply_text("ℹ️ No active batch process found.")
 
-@X.on_message(filters.text & filters.private & ~login_in_progress & ~filters.command([
-    'start', 'batch', 'cancel', 'login', 'logout', 'stop', 'set', 
-    'pay', 'redeem', 'gencode', 'single', 'generate', 'keyinfo', 'encrypt', 'decrypt', 'keys', 'setbot', 'rembot']))
+
+@X.on_message(
+    filters.text 
+    & filters.private 
+    & ~login_in_progress 
+    & ~filters.command([
+        'start', 'batch', 'cancel', 'login', 'logout', 'stop', 'set', 
+        'pay', 'redeem', 'gencode', 'single', 'generate', 'keyinfo', 'encrypt',
+        'decrypt', 'keys', 'setbot', 'rembot'
+    ])
+)
 async def text_handler(c, m):
     uid = m.from_user.id
-    if uid not in Z: return
+    if uid not in Z: 
+        return
     s = Z[uid].get('step')
+    is_prem = Z[uid].get('premium', False)
+    badge = "💎 Premium User" if is_prem else "🆓 Free User"
+
     x = await get_ubot(uid)
     if not x:
-        await message.reply("Add your bot /setbot `token`")
+        await m.reply("🤖 Add your bot first using /setbot `token`")
         return
 
     if s == 'start':
         L = m.text
         i, d, lt = E(L)
         if not i or not d:
-            await m.reply_text('Invalid link format.')
+            await m.reply_text(
+                f"{badge}\n\n"
+                "❌ Invalid link format.\nPlease send a valid message link."
+            )
             Z.pop(uid, None)
             return
         Z[uid].update({'step': 'count', 'cid': i, 'sid': d, 'lt': lt})
-        await m.reply_text('How many messages?')
+
+        # show plan + ask count
+        if is_prem:
+            limit_line = f"💎 Plan: Premium\n🔢 Max per batch: {PREMIUM_LIMIT}"
+        else:
+            limit_line = f"🆓 Plan: Free\n🔢 Daily batch limit: {FREEMIUM_LIMIT}"
+
+        await m.reply_text(
+            f"{limit_line}\n\n"
+            "📌 How many messages do you want to process?"
+        )
 
     elif s == 'start_single':
         L = m.text
         i, d, lt = E(L)
         if not i or not d:
-            await m.reply_text('Invalid link format.')
+            await m.reply_text(
+                f"{badge}\n\n"
+                "❌ Invalid link format.\nPlease send a valid message link."
+            )
             Z.pop(uid, None)
             return
 
         Z[uid].update({'step': 'process_single', 'cid': i, 'sid': d, 'lt': lt})
-        i, s, lt = Z[uid]['cid'], Z[uid]['sid'], Z[uid]['lt']
-        pt = await m.reply_text('Processing...')
+        i, s_, lt = Z[uid]['cid'], Z[uid]['sid'], Z[uid]['lt']
+
+        pt = await m.reply_text(
+            f"{badge}\n\n"
+            "⏳ Processing your request..."
+        )
         
         ubot = UB.get(uid)
         if not ubot:
-            await pt.edit('Add bot with /setbot first')
+            await pt.edit("🤖 Please add your bot first using /setbot")
             Z.pop(uid, None)
             return
         
         uc = await get_uclient(uid)
         if not uc:
-            await pt.edit('Cannot proceed without user client.')
+            await pt.edit("⚠️ Cannot proceed without user client.\nPlease configure your account first.")
             Z.pop(uid, None)
             return
             
         if is_user_active(uid):
-            await pt.edit('Active task exists. Use /stop first.')
+            await pt.edit("⚠️ Another task is already running.\nUse /stop to cancel it first.")
             Z.pop(uid, None)
             return
 
         try:
-            msg = await get_msg(ubot, uc, i, s, lt)
+            msg = await get_msg(ubot, uc, i, s_, lt)
             if msg:
                 res = await process_msg(ubot, uc, msg, str(m.chat.id), lt, uid, i)
-                await pt.edit(f'1/1: {res}')
+                await pt.edit(f'{badge}\n\n`1/1` ➜ {res}')
             else:
-                await pt.edit('Message not found')
+                await pt.edit(
+                    f"{badge}\n\n"
+                    "❌ Message not found.\nPlease check the link and try again."
+                )
         except Exception as e:
-            await pt.edit(f'Error: {str(e)[:50]}')
+            await pt.edit(f'{badge}\n\nError: {str(e)[:50]}')
         finally:
             Z.pop(uid, None)
 
     elif s == 'count':
         if not m.text.isdigit():
-            await m.reply_text('Enter valid number.')
+            await m.reply_text("❌ Please enter a valid number.")
             return
         
         count = int(m.text)
-        maxlimit = PREMIUM_LIMIT if await is_premium_user(uid) else FREEMIUM_LIMIT
+        maxlimit = PREMIUM_LIMIT if is_prem else FREEMIUM_LIMIT
 
         if count > maxlimit:
-            await m.reply_text(f'Maximum limit is {maxlimit}.')
+            await m.reply_text(
+                f"⚠️ You requested `{count}` messages.\n"
+                f"🔒 Your current plan limit is **{maxlimit}**."
+            )
             return
 
         Z[uid].update({'step': 'process', 'did': str(m.chat.id), 'num': count})
-        i, s, n, lt = Z[uid]['cid'], Z[uid]['sid'], Z[uid]['num'], Z[uid]['lt']
+        i, s_, n, lt = Z[uid]['cid'], Z[uid]['sid'], Z[uid]['num'], Z[uid]['lt']
         success = 0
 
-        pt = await m.reply_text('Processing batch...')
+        # main progress message with badge
+        pt = await m.reply_text(
+            f"{badge}\n\n"
+            "📦 Processing your batch..."
+        )
+
         uc = await get_uclient(uid)
         ubot = UB.get(uid)
         
         if not uc or not ubot:
-            await pt.edit('Missing client setup')
+            try:
+                await pt.edit("⚠️ Missing client setup.\nPlease check your configuration.")
+            except Exception:
+                pass
             Z.pop(uid, None)
             return
             
         if is_user_active(uid):
-            await pt.edit('Active task exists')
+            try:
+                await pt.edit("⚠️ Another task is already running.")
+            except Exception:
+                pass
             Z.pop(uid, None)
             return
         
@@ -523,18 +752,22 @@ async def text_handler(c, m):
             "success": 0,
             "cancel_requested": False,
             "progress_message_id": pt.id
-            })
+        })
         
         try:
             for j in range(n):
-                
                 if should_cancel(uid):
-                    await pt.edit(f'Cancelled at {j}/{n}. Success: {success}')
+                    try:
+                        await pt.edit(
+                            f"{badge}\n\n"
+                            f"🛑 Batch cancelled at {j}/{n}.\n"
+                            f"✅ Successful: {success}"
+                        )
+                    except Exception:
+                        pass
                     break
                 
-                await update_batch_progress(uid, j, success)
-                
-                mid = int(s) + j
+                mid = int(s_) + j
                 
                 try:
                     msg = await get_msg(ubot, uc, i, mid, lt)
@@ -544,17 +777,45 @@ async def text_handler(c, m):
                             success += 1
                     else:
                         pass
+
+                    current = j + 1
+                    remaining = n - current
+                    await update_batch_progress(uid, current, success)
+
+                    # batch progress bar
+                    batch_p = (current / n) * 100
+                    filled = int(batch_p // 10)
+                    empty = 10 - filled
+                    batch_bar = "█" * filled + "░" * empty
+
+                    try:
+                        await pt.edit(
+                            f"{badge}\n\n"
+                            "📦 **Batch in progress**\n"
+                            "━━━━━━━━━━━━━━━━\n\n"
+                            f"`[{batch_bar}]`  **{batch_p:.1f}%**\n\n"
+                            f"➡️ **Processed:** {current}/{n}\n"
+                            f"✅ **Successful:** {success}\n"
+                            f"⌛ **Remaining:** {remaining}"
+                        )
+                    except Exception:
+                        pass
+
                 except Exception as e:
-                    try: await pt.edit(f'{j+1}/{n}: Error - {str(e)[:30]}')
-                    except: pass
+                    try:
+                        await pt.edit(f'⚠️ {j+1}/{n}: Error - {str(e)[:30]}')
+                    except Exception:
+                        pass
                 
                 await asyncio.sleep(10)
             
-            if j+1 == n:
-                await m.reply_text(f'Batch Completed ✅ Success: {success}/{n}')
+            if j + 1 == n:
+                await m.reply_text(
+                    f"{badge}\n\n"
+                    f"✅ Batch completed.\n"
+                    f"📊 Success: {success}/{n}"
+                )
         
         finally:
             await remove_active_batch(uid)
             Z.pop(uid, None)
-
-
