@@ -4,7 +4,7 @@
 
 import os, re, time, asyncio, json, asyncio 
 from pyrogram import Client, filters
-from pyrogram.types import Message
+from pyrogram.types import Message, InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.errors import UserNotParticipant, FloodWait
 from config import API_ID, API_HASH, LOG_GROUP, STRING, FORCE_SUB, FREEMIUM_LIMIT, PREMIUM_LIMIT
 from utils.func import get_user_data, screenshot, thumbnail, get_video_metadata
@@ -22,6 +22,21 @@ Z, P, UB, UC, emp = {}, {}, {}, {}, {}
 
 ACTIVE_USERS = {}
 ACTIVE_USERS_FILE = "active_users.json"
+
+
+
+
+# CallBack Keyboard for cancelling the batch process
+def cancel_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [[InlineKeyboardButton("🛑 Cancel", callback_data=f"cancel")]]
+    )
+def batch_again_kb() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [InlineKeyboardButton("🔁 Run Again", callback_data="batch")]
+        ]
+    )
 
 # fixed directory file_name problems 
 def sanitize(filename):
@@ -287,13 +302,17 @@ async def prog(c, t, C, h, m, st):
 
         text = (
             "📽 **Media Transfer**\n"
-            "━━━━━━━━━━━━━━━━━━━━\n\n"
-            f"`[{bar_blocks}]`  **{p:.1f}%**\n\n"
-            f"📦 **Size:** {c_mb:.2f} MB / {t_mb:.2f} MB\n"
-            f"🚀 **Speed:** {speed:.2f} MB/s\n"
-            f"⏳ **ETA:** {eta}\n\n"
+            "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+            f"╔════════════════════════════╗\n"
+            f"║ 📊 **Progress:** `{bar_blocks}`  **{p:.1f}%**\n"
+            f"╠════════════════════════════╣\n"
+            f"║ 📦 **Size:** {c_mb:.2f} MB / {t_mb:.2f} MB\n"
+            f"║ 🚀 **Speed:** {speed:.2f} MB/s\n"
+            f"║ ⏳ **ETA:** {eta}\n"
+            f"╚════════════════════════════╝\n\n"
             "_Please keep this chat open while processing…_"
         )
+
 
         try:
             await C.edit_message_text(h, m, text)
@@ -594,7 +613,8 @@ async def cancel_cmd(c, m):
         if await request_batch_cancel(uid):
             await m.reply_text(
                 "🛑 Cancellation requested.\n"
-                "The current batch will stop after the ongoing task finishes."
+                "The current batch will stop safely after the ongoing task completes ⏳\n\n"
+                "⚙️ _No further tasks will be processed._"
             )
         else:
             await m.reply_text(
@@ -621,7 +641,8 @@ async def text_handler(c, m):
         return
     s = Z[uid].get('step')
     is_prem = Z[uid].get('premium', False)
-    badge = "💎 Premium User" if is_prem else "🆓 Free User"
+    # badge = "💎 Premium User" if is_prem else "🆓 Free User"
+    badge = "👑 VIP Premium" if is_prem else "🎈 Freebie User"
 
     x = await get_ubot(uid)
     if not x:
@@ -672,7 +693,11 @@ async def text_handler(c, m):
         
         ubot = UB.get(uid)
         if not ubot:
-            await pt.edit("🤖 Please add your bot first using /setbot")
+            await pt.edit(
+                "⚙️ **Setup Required!**\n"
+                "Use `/setbot` to connect your bot before continuing 🤖"
+            )
+
             Z.pop(uid, None)
             return
         
@@ -712,9 +737,11 @@ async def text_handler(c, m):
 
         if count > maxlimit:
             await m.reply_text(
-                f"⚠️ You requested `{count}` messages.\n"
-                f"🔒 Your current plan limit is **{maxlimit}**."
+                f"🚫 **Request Denied!** You asked for `{count}` messages, "
+                f"but your plan allows only `{maxlimit}`.\n\n"
+                "_Please upgrade to continue ⬆️_"
             )
+
             return
 
         Z[uid].update({'step': 'process', 'did': str(m.chat.id), 'num': count})
@@ -723,9 +750,13 @@ async def text_handler(c, m):
 
         # main progress message with badge
         pt = await m.reply_text(
-            f"{badge}\n\n"
-            "📦 Processing your batch..."
-        )
+                f"{badge}\n\n"
+                "⚙️ **Batch Processing Started...**\n"
+                "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                "📦 Preparing tasks...\n"
+                "⏳ Please wait while we process your batch."
+            )
+
 
         uc = await get_uclient(uid)
         ubot = UB.get(uid)
@@ -740,7 +771,7 @@ async def text_handler(c, m):
             
         if is_user_active(uid):
             try:
-                await pt.edit("⚠️ Another task is already running.")
+                await pt.edit("🚧 **System Busy:** A batch is already running. Please wait ⏳")
             except Exception:
                 pass
             Z.pop(uid, None)
@@ -760,9 +791,16 @@ async def text_handler(c, m):
                     try:
                         await pt.edit(
                             f"{badge}\n\n"
-                            f"🛑 Batch cancelled at {j}/{n}.\n"
-                            f"✅ Successful: {success}"
+                            "🛑 **Batch Cancelled!**\n"
+                            "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                            f"╔════════════════════════════╗\n"
+                            f"║ 📍 **Stopped at:** `{j}/{n}`\n"
+                            f"║ ✅ **Successful:** `{success}`\n"
+                            f"║ ❌ **Cancelled:** `{n - j}`\n"
+                            f"╚════════════════════════════╝\n\n"
+                            "_Process terminated by user._"
                         )
+
                     except Exception:
                         pass
                     break
@@ -789,15 +827,21 @@ async def text_handler(c, m):
                     batch_bar = "█" * filled + "░" * empty
 
                     try:
-                        await pt.edit(
-                            f"{badge}\n\n"
-                            "📦 **Batch in progress**\n"
-                            "━━━━━━━━━━━━━━━━\n\n"
-                            f"`[{batch_bar}]`  **{batch_p:.1f}%**\n\n"
-                            f"➡️ **Processed:** {current}/{n}\n"
-                            f"✅ **Successful:** {success}\n"
-                            f"⌛ **Remaining:** {remaining}"
-                        )
+                       await pt.edit(
+                        f"{badge}\n\n"
+                        "📦 **Batch Progress Report**\n"
+                        "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                        f"╔══════════════════════════════╗\n"
+                        f"║ 📊 **Progress:** `{batch_bar}`  **{batch_p:.1f}%**\n"
+                        f"╠══════════════════════════════╣\n"
+                        f"║ ➡️ **Processed:** `{current}/{n}`\n"
+                        f"║ ✅ **Successful:** `{success}`\n"
+                        f"║ ⏳ **Remaining:** `{remaining}`\n"
+                        f"╚══════════════════════════════╝\n\n"
+                        "_Please wait while batch completes..._",
+                        reply_markup=cancel_kb()
+                    )
+
                     except Exception:
                         pass
 
@@ -812,9 +856,17 @@ async def text_handler(c, m):
             if j + 1 == n:
                 await m.reply_text(
                     f"{badge}\n\n"
-                    f"✅ Batch completed.\n"
-                    f"📊 Success: {success}/{n}"
+                    "🎉 **Batch Completed Successfully!**\n"
+                    "━━━━━━━━━━━━━━━━━━━━━━\n\n"
+                    f"╔════════════════════════════╗\n"
+                    f"║ ✅ **Status:** Completed\n"
+                    f"║ 📊 **Success:** `{success}/{n}`\n"
+                    f"║ ⏱ **Time:** {time.strftime('%H:%M:%S')}\n"
+                    f"╚════════════════════════════╝\n\n"
+                    "✨ _All tasks have been processed successfully! Need more? Run /batch commang again_",
+                    batch_again_kb()
                 )
+
         
         finally:
             await remove_active_batch(uid)
