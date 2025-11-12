@@ -1,136 +1,449 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Team SPY - Bot is Live</title>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Restricted Saver V3 — Live</title>
+    <meta name="theme-color" content="#0b0f14" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=JetBrains+Mono:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
     <style>
-        /* Basic reset */
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+      :root {
+        --bg: #0b0f14;
+        --fg: #e6f3ff;
+        --muted: #9ab6cc;
+        --primary: #7c3aed; /* violet */
+        --accent: #22d3ee; /* cyan */
+        --success: #22c55e; /* green */
+        --warn: #f59e0b; /* amber */
+        --danger: #ef4444; /* red */
+        --card: 12, 18, 26; /* rgb of glass base */
+        --ring: 124, 58, 237; /* rgb of violet */
+      }
 
-        body, html {
-            height: 100%;
-            font-family: 'Courier New', Courier, monospace;
-            background: black;
-            color: white;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            overflow: hidden;
-        }
+      * {
+        box-sizing: border-box;
+      }
+      html,
+      body {
+        height: 100%;
+      }
+      body {
+        margin: 0;
+        font-family: Inter, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu,
+          Cantarell, "Helvetica Neue", Arial, "Noto Sans", sans-serif;
+        color: var(--fg);
+        background: radial-gradient(
+            1200px 800px at 10% 10%,
+            rgba(124, 58, 237, 0.12),
+            rgba(34, 211, 238, 0.06) 40%,
+            transparent 70%
+          ),
+          radial-gradient(
+            1000px 700px at 90% 20%,
+            rgba(34, 211, 238, 0.12),
+            rgba(124, 58, 237, 0.06) 40%,
+            transparent 70%
+          ),
+          linear-gradient(180deg, #0b0f14 0%, #090c11 100%);
+        min-height: 100%;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+      }
 
-        /* Main content container */
+      /* Subtle noise for richness */
+      .noise {
+        position: fixed;
+        inset: 0;
+        pointer-events: none;
+        opacity: 0.05;
+        mix-blend-mode: soft-light;
+        background-image: url('data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" width="60" height="60" viewBox="0 0 60 60"%3E%3Cfilter id="n" x="0" y="0" width="1" height="1"%3E%3CfeTurbulence type="fractalNoise" baseFrequency="0.75" numOctaves="4" stitchTiles="stitch"/%3E%3CfeColorMatrix type="saturate" values="0"/%3E%3C/filter%3E%3Crect width="100%25" height="100%25" filter="url(%23n)" opacity="0.8"/%3E%3C/svg%3E');
+        background-size: 300px 300px;
+      }
+
+      /* Floating gradient orbs */
+      .orb {
+        position: fixed;
+        border-radius: 50%;
+        filter: blur(40px);
+        opacity: 0.35;
+        pointer-events: none;
+        mix-blend-mode: screen;
+        animation: float 16s ease-in-out infinite;
+      }
+      .orb.one {
+        width: 28vmax;
+        height: 28vmax;
+        left: -10vmax;
+        top: -10vmax;
+        background: radial-gradient(
+          circle at 30% 30%,
+          #7c3aed,
+          transparent 60%
+        );
+      }
+      .orb.two {
+        width: 24vmax;
+        height: 24vmax;
+        right: -8vmax;
+        top: 10vmax;
+        background: radial-gradient(
+          circle at 70% 40%,
+          #22d3ee,
+          transparent 60%
+        );
+        animation-delay: -6s;
+      }
+      .orb.three {
+        width: 22vmax;
+        height: 22vmax;
+        left: 10vmax;
+        bottom: -8vmax;
+        background: radial-gradient(
+          circle at 40% 70%,
+          #22c55e,
+          transparent 60%
+        );
+        animation-delay: -3s;
+      }
+      @keyframes float {
+        0%,
+        100% {
+          transform: translateY(0);
+        }
+        50% {
+          transform: translateY(-20px);
+        }
+      }
+
+      .container {
+        width: min(960px, 92%);
+        position: relative;
+        padding: 32px;
+        backdrop-filter: blur(18px) saturate(1.1);
+        background: linear-gradient(
+          180deg,
+          rgba(var(--card), 0.64),
+          rgba(var(--card), 0.4)
+        );
+        border-radius: 24px;
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        box-shadow: 0 10px 40px rgba(0, 0, 0, 0.45),
+          inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+        outline: 1px solid rgba(var(--ring), 0.14);
+        position: relative;
+      }
+
+      .topline {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        margin-bottom: 20px;
+      }
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .logo {
+        width: 42px;
+        height: 42px;
+        display: grid;
+        place-items: center;
+        border-radius: 12px;
+        background: linear-gradient(
+          135deg,
+          rgba(124, 58, 237, 0.9),
+          rgba(34, 211, 238, 0.9)
+        );
+        box-shadow: 0 6px 22px rgba(124, 58, 237, 0.35),
+          0 0 0 1px rgba(255, 255, 255, 0.08) inset;
+        font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo,
+          Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-weight: 800;
+        letter-spacing: 0.5px;
+      }
+      .logo span {
+        font-size: 18px;
+        color: #041018;
+        text-shadow: 0 1px 0 rgba(255, 255, 255, 0.35);
+      }
+      .brand h1 {
+        margin: 0;
+        font-size: clamp(28px, 5vw, 42px);
+        font-weight: 800;
+        letter-spacing: 0.02em;
+        background: linear-gradient(
+          90deg,
+          #ffffff,
+          #c3dafe 30%,
+          #93c5fd 70%,
+          #e9d5ff
+        );
+        -webkit-background-clip: text;
+        background-clip: text;
+        color: transparent;
+      }
+      .brand small {
+        display: block;
+        color: var(--muted);
+        margin-top: 2px;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+        font-weight: 600;
+      }
+
+      .status {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 10px 14px;
+        border-radius: 999px;
+        font-weight: 700;
+        background: rgba(34, 197, 94, 0.12);
+        color: #c2f8d0;
+        border: 1px solid rgba(34, 197, 94, 0.25);
+        text-shadow: 0 0 10px rgba(34, 197, 94, 0.5);
+      }
+      .ping {
+        width: 10px;
+        height: 10px;
+        border-radius: 999px;
+        background: var(--success);
+        box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+        animation: ping 1.8s infinite;
+      }
+      @keyframes ping {
+        0% {
+          box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7);
+        }
+        70% {
+          box-shadow: 0 0 0 10px rgba(34, 197, 94, 0);
+        }
+        100% {
+          box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);
+        }
+      }
+
+      .hero {
+        margin-top: 12px;
+        text-align: center;
+        padding: clamp(12px, 2vw, 24px) 8px 8px;
+      }
+      .title {
+        font-family: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo,
+          Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-weight: 800;
+        text-transform: uppercase;
+        letter-spacing: 0.18em;
+        font-size: clamp(26px, 4.6vw, 44px);
+        line-height: 1.12;
+        margin-bottom: 8px;
+        text-shadow: 0 4px 32px rgba(124, 58, 237, 0.45), 0 0 0 #000;
+      }
+
+      /* Animated gradient underline */
+      .title .accent {
+        position: relative;
+        display: inline-block;
+      }
+      .title .accent::after {
+        content: "";
+        position: absolute;
+        left: 0;
+        right: 0;
+        bottom: -6px;
+        height: 3px;
+        border-radius: 3px;
+        background: linear-gradient(90deg, #7c3aed, #22d3ee, #22c55e);
+        background-size: 200% 100%;
+        animation: slide 4s linear infinite;
+        box-shadow: 0 0 20px rgba(124, 58, 237, 0.4);
+      }
+      @keyframes slide {
+        to {
+          background-position-x: 200%;
+        }
+      }
+
+      .subtitle {
+        color: var(--muted);
+        font-size: clamp(14px, 1.8vw, 18px);
+        margin-top: 10px;
+      }
+
+      .actions {
+        margin-top: 26px;
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+        justify-content: center;
+      }
+      .btn {
+        --glow: rgba(124, 58, 237, 0.45);
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+        padding: 12px 20px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: white;
+        text-decoration: none;
+        border-radius: 14px;
+        background: linear-gradient(
+          135deg,
+          rgba(124, 58, 237, 0.9),
+          rgba(34, 211, 238, 0.9)
+        );
+        border: 1px solid rgba(255, 255, 255, 0.12);
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45), 0 0 0 0 var(--glow);
+        transition: transform 0.18s ease, box-shadow 0.18s ease,
+          filter 0.18s ease;
+      }
+      .btn:hover {
+        transform: translateY(-3px);
+        box-shadow: 0 16px 34px rgba(0, 0, 0, 0.55), 0 0 32px var(--glow);
+        filter: saturate(1.1);
+      }
+      .btn.secondary {
+        background: linear-gradient(
+          135deg,
+          rgba(2, 6, 23, 0.6),
+          rgba(2, 6, 23, 0.2)
+        );
+        color: #e6f3ff;
+        border: 1px solid rgba(255, 255, 255, 0.14);
+      }
+
+      /* Info grid */
+      .grid {
+        margin-top: 28px;
+        display: grid;
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+        gap: 14px;
+      }
+      .card {
+        padding: 18px;
+        border-radius: 16px;
+        background: linear-gradient(
+          180deg,
+          rgba(var(--card), 0.55),
+          rgba(var(--card), 0.35)
+        );
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        outline: 1px solid rgba(124, 58, 237, 0.1);
+      }
+      .card h3 {
+        margin: 0 0 8px;
+        font-size: 14px;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        color: #c2d9ff;
+      }
+      .card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      footer {
+        margin-top: 26px;
+        color: #7fa2bd;
+        font-size: 12px;
+        opacity: 0.9;
+        text-align: center;
+      }
+
+      @media (max-width: 900px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
         .container {
-            text-align: center;
-            z-index: 1;
+          padding: 22px;
+          border-radius: 18px;
         }
-
-        /* Animating text appearance */
-        @keyframes glitch {
-            0% {
-                text-shadow: 2px 2px #00ff00, -2px -2px #00ff00;
-            }
-            20% {
-                text-shadow: 2px -2px #ff00ff, -2px 2px #00ff00;
-            }
-            40% {
-                text-shadow: -2px 2px #00ff00, 2px -2px #ff00ff;
-            }
-            60% {
-                text-shadow: 2px 2px #ff00ff, -2px -2px #00ff00;
-            }
-            80% {
-                text-shadow: -2px -2px #ff00ff, 2px 2px #00ff00;
-            }
-            100% {
-                text-shadow: 2px 2px #00ff00, -2px -2px #00ff00;
-            }
-        }
-
-        /* Styling for the welcome text */
-        .team-spy {
-            font-size: 3rem;
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 5px;
-            background: linear-gradient(90deg, #ff6a00, #ee0979, #8e44ad, #3498db, #f4d03f);
-            background-size: 300%;
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            text-shadow: 0 0 20px rgba(255, 255, 255, 0.6);
-            animation: glitch 1.5s infinite;
-        }
-
-        .bot-status {
-            margin-top: 15px;
-            font-size: 1.2rem;
-            font-weight: 600;
-            letter-spacing: 2px;
-            color: #00ffab;
-            text-shadow: 0 0 10px #00ffab, 0 0 20px #00ffab;
-        }
-
-        .actions {
-            margin-top: 20px;
-        }
-
-        .btn {
-            display: inline-block;
-            padding: 12px 25px;
-            font-size: 1rem;
-            font-weight: 600;
-            color: white;
-            text-transform: uppercase;
-            text-decoration: none;
-            border-radius: 30px;
-            background: linear-gradient(90deg, #6a11cb, #2575fc);
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-            transition: transform 0.3s ease, box-shadow 0.3s ease;
-        }
-
-        .btn:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
-            background: linear-gradient(90deg, #2575fc, #6a11cb);
-        }
-
-        /* Responsive Design */
-        @media (max-width: 768px) {
-            .team-spy {
-                font-size: 2.5rem;
-            }
-
-            .bot-status {
-                font-size: 1rem;
-            }
-
-            .btn {
-                padding: 10px 20px;
-                font-size: 0.9rem;
-            }
-        }
-
-        @media (min-width: 1200px) {
-            .team-spy {
-                font-size: 4rem;
-            }
-        }
+      }
     </style>
-</head>
-<body>
-    <!-- Main Content -->
-    <div class="container">
-        <div class="team-spy">Team SPY</div>
-        <div class="bot-status">⚡ Bot is Live ⚡</div>
+  </head>
+  <body>
+    <div class="noise" aria-hidden="true"></div>
+    <div class="orb one" aria-hidden="true"></div>
+    <div class="orb two" aria-hidden="true"></div>
+    <div class="orb three" aria-hidden="true"></div>
 
-        <div class="actions">
-            <a href="https://t.me/team_spy_pro" class="btn">Join Us</a>
-            <a href="https://github.com/devgaganin" class="btn">GitHub</a>
+    <main class="container" role="main">
+      <div class="topline">
+        <div class="brand">
+          <div class="logo" aria-hidden="true"><span>V3</span></div>
+          <div>
+            <h1>Restricted Saver <span style="opacity: 0.85">V3</span></h1>
+            <small>Team SPY — Secure · Fast · Reliable</small>
+          </div>
         </div>
-    </div>
-</body>
+        <div class="status" title="Bot is live">
+          <span class="ping" aria-hidden="true"></span>
+          <span>Live</span>
+        </div>
+      </div>
+
+      <section class="hero">
+        <div class="title"><span class="accent">⚡ Bot is Live</span></div>
+        <p class="subtitle">
+          High‑throughput restricted content saver with premium pipeline, glass
+          UI and real‑time progress feedback.
+        </p>
+        <div class="actions" aria-label="primary actions">
+          <a
+            class="btn"
+            href="https://t.me/team_spy_pro"
+            target="_blank"
+            rel="noopener"
+            >Join Us</a
+          >
+          <a
+            class="btn secondary"
+            href="https://github.com/devgaganin"
+            target="_blank"
+            rel="noopener"
+            >GitHub</a
+          >
+        </div>
+      </section>
+
+      <section class="grid" aria-label="highlights">
+        <article class="card">
+          <h3>Speed</h3>
+          <p>
+            Optimized transfer pipeline with visual progress, resumable flows
+            and smart retries.
+          </p>
+        </article>
+        <article class="card">
+          <h3>Security</h3>
+          <p>
+            Private session handling, scoped tokens and granular access for
+            peace of mind.
+          </p>
+        </article>
+        <article class="card">
+          <h3>Premium</h3>
+          <p>
+            Higher limits, alternate routes for 2GB+, and priority queueing for
+            VIP users.
+          </p>
+        </article>
+      </section>
+
+      <footer>© 2025 Team SPY · Restricted Saver V3</footer>
+    </main>
+  </body>
 </html>

@@ -277,6 +277,7 @@ async def get_video_metadata(file_path):
         return default_values
 
 
+# Make a user premium member
 async def add_premium_user(user_id, duration_value, duration_unit):
     try:
         now = datetime.now()
@@ -330,6 +331,7 @@ async def is_premium_user(user_id):
         return False
 
 
+# get premium member details
 async def get_premium_details(user_id):
     try:
         user = await premium_users_collection.find_one({"user_id": user_id})

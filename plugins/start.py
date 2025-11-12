@@ -33,6 +33,7 @@ async def set(_, message):
     await app.set_bot_commands([
         BotCommand("start", "🚀 Start the bot"),
         BotCommand("batch", "🫠 Extract in bulk"),
+        BotCommand("redeem", "Get 1 day premium"),
         BotCommand("login", "🔑 Get into the bot"),
         BotCommand("setbot", "🧸 Add your bot for handling files"),
         BotCommand("logout", "🚪 Get out of the bot"),
