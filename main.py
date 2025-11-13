@@ -8,24 +8,55 @@
 
 
 import asyncio
-from shared_client import start_client, client, app, userbot
 import importlib
 import os
 import sys
+
 from pyrogram import idle
+from shared_client import start_client, client, app, userbot
 
 
+# async def load_and_run_plugins():
+#     await start_client()
+#     plugin_dir = "plugins"
+#     plugins = [f[:-3] for f in os.listdir(plugin_dir) if f.endswith(".py") and f != "__init__.py"]
 
+#     for plugin in plugins:
+#         module = importlib.import_module(f"plugins.{plugin}")
+#         if hasattr(module, f"run_{plugin}_plugin"):
+#             print(f"Running {plugin} plugin...")
+#             await getattr(module, f"run_{plugin}_plugin")()  
+
+# updated plugin function
 async def load_and_run_plugins():
-    await start_client()
+    """
+    plugins ফোল্ডারের সব .py ফাইল import করবে,
+    আর চাইলে run_<plugin>_plugin() নামের extra async hook থাকলে সেটা চালাবে।
+    """
     plugin_dir = "plugins"
-    plugins = [f[:-3] for f in os.listdir(plugin_dir) if f.endswith(".py") and f != "__init__.py"]
+    plugins = [
+        f[:-3]
+        for f in os.listdir(plugin_dir)
+        if f.endswith(".py") and f != "__init__.py"
+    ]
 
     for plugin in plugins:
-        module = importlib.import_module(f"plugins.{plugin}")
-        if hasattr(module, f"run_{plugin}_plugin"):
-            print(f"Running {plugin} plugin...")
-            await getattr(module, f"run_{plugin}_plugin")()  
+        try:
+            module = importlib.import_module(f"plugins.{plugin}")
+            print(f"✅ Loaded plugin: {plugin}")
+
+            # Optional hook: run_<plugin>_plugin()
+            hook_name = f"run_{plugin}_plugin"
+            if hasattr(module, hook_name):
+                hook = getattr(module, hook_name)
+                print(f"🚀 Running hook for plugin: {plugin}")
+                if asyncio.iscoroutinefunction(hook):
+                    await hook()
+                else:
+                    hook()
+        except Exception as e:
+            print(f"❌ Failed to load plugin {plugin}: {e}")
+
 
 # async def main():
 #     await load_and_run_plugins()
@@ -48,26 +79,40 @@ async def load_and_run_plugins():
 #         except Exception:
 #             pass
 
-
 async def main():
     print("Starting clients ...")
 
-    # Start all clients
+    # 1️⃣ Telethon + Pyrogram clients start
     await start_client()
 
-    # Keep them running
+    # 2️⃣ Plugins/handlers load
+    print("Loading plugins ...")
+    await load_and_run_plugins()
+    print("All plugins loaded. Bot is up and running ✅")
+
+    # 3️⃣ Bot কে alive রাখো, যেন commands/process সব handle করতে পারে
     await idle()
 
-    # Graceful shutdown
+    # 4️⃣ Graceful shutdown
     print("Shutting down ...")
-    await app.stop()
+    try:
+        await app.stop()
+    except Exception:
+        pass
 
     try:
         await userbot.stop()
     except Exception:
         pass
 
-    await client.disconnect()
+    try:
+        await client.disconnect()
+    except Exception:
+        pass
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("Interrupted by user, exiting...")
+        sys.exit(0)
