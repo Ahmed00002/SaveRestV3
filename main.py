@@ -14,15 +14,16 @@ async def load_and_run_plugins():
     """
     plugins ফোল্ডারের সব .py ফাইল import করবে,
     আর চাইলে run_<plugin>_plugin() নামের extra async hook থাকলে সেটা চালাবে।
-    NOTE: এখানে আর start_client() নেই, main() এ একবারই কল হবে।
+    এখানে client start হবে না, শুধু plugins load হবে।
     """
-    await start_client()
     plugin_dir = "plugins"
-    plugins = [f[:-3] for f in os.listdir(plugin_dir) if f.endswith(".py") and f != "__init__.py"]
+    plugins = [
+        f[:-3]
+        for f in os.listdir(plugin_dir)
+        if f.endswith(".py") and f != "__init__.py"
+    ]
 
     for plugin in plugins:
-        
-        
         try:
             module = importlib.import_module(f"plugins.{plugin}")
             print(f"✅ Loaded plugin: {plugin}")
@@ -42,7 +43,7 @@ async def load_and_run_plugins():
 async def main():
     print("Starting clients ...")
 
-    # 1️⃣ Telethon + Pyrogram clients start
+    # 1️⃣ Telethon + Pyrogram clients start – একবারই
     await start_client()
 
     # 2️⃣ Plugins/handlers load
@@ -54,10 +55,9 @@ async def main():
         while True:
             await asyncio.sleep(1)
     except asyncio.CancelledError:
-        # asyncio.run cancel করলে এখান দিয়ে বের হবে
         pass
     finally:
-        # 4️⃣ Graceful shutdown: loop বন্ধের আগে সব client থামিয়ে দাও
+        # 4️⃣ Graceful shutdown
         print("Shutting down ...")
         try:
             await app.stop()
