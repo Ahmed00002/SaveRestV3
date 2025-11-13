@@ -23,6 +23,6 @@ async def start_client():
             print(f"Hey honey!! check your premium string session, it may be invalid of expire {e}")
             sys.exit(1)
     await app.start()
-    print("Pyro App Started...")
+    print("App Started...")
     return client, app, userbot
 

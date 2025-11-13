@@ -2,11 +2,19 @@
 # Licensed under the GNU General Public License v3.0.  
 # See LICENSE file in the repository root for full license text.
 
+
+
+
+
+
 import asyncio
-from shared_client import start_client
+from shared_client import start_client, client, app, userbot
 import importlib
 import os
 import sys
+from pyrogram import idle
+
+
 
 async def load_and_run_plugins():
     await start_client()
@@ -19,23 +27,47 @@ async def load_and_run_plugins():
             print(f"Running {plugin} plugin...")
             await getattr(module, f"run_{plugin}_plugin")()  
 
+# async def main():
+#     await load_and_run_plugins()
+#     while True:
+#         await asyncio.sleep(1)  
+
+# if __name__ == "__main__":
+#     loop = asyncio.get_event_loop()
+#     print("Starting clients ...")
+#     try:
+#         loop.run_until_complete(main())
+#     except KeyboardInterrupt:
+#         print("Shutting down...")
+#     except Exception as e:
+#         print(e)
+#         sys.exit(1)
+#     finally:
+#         try:
+#             loop.close()
+#         except Exception:
+#             pass
+
+
 async def main():
-    await load_and_run_plugins()
-    while True:
-        await asyncio.sleep(1)  
+    print("Starting clients ...")
+
+    # Start all clients
+    await start_client()
+
+    # Keep them running
+    await idle()
+
+    # Graceful shutdown
+    print("Shutting down ...")
+    await app.stop()
+
+    try:
+        await userbot.stop()
+    except Exception:
+        pass
+
+    await client.disconnect()
 
 if __name__ == "__main__":
-    loop = asyncio.get_event_loop()
-    print("Starting clients ...")
-    try:
-        loop.run_until_complete(main())
-    except KeyboardInterrupt:
-        print("Shutting down...")
-    except Exception as e:
-        print(e)
-        sys.exit(1)
-    finally:
-        try:
-            loop.close()
-        except Exception:
-            pass
+    asyncio.run(main())
