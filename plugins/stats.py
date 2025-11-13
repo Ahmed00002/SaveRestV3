@@ -51,10 +51,12 @@ async def status_handler(event):
         premium_status = f"✅ Premium until {formatted_expiry} (IST)"
     
     await event.respond(
-        "**Your current status:**\n\n"
-        f"**Login Status:** {'✅ Active' if session_active else '❌ Inactive'}\n"
-        f"**Premium:** {premium_status}"
-    )
+        f"""🧾 **Account Overview**  
+
+        **🔐 Login Status:** {'✅ Active' if session_active else '❌ Inactive'}  
+        **💎 Premium Status:** {premium_status}"""
+        )
+
 
 @bot_client.on(events.NewMessage(pattern='/transfer'))
 async def transfer_premium_handler(event):
@@ -73,7 +75,7 @@ async def transfer_premium_handler(event):
     args = event.text.split()
     if len(args) != 2:
         await event.respond(
-            'Usage: /transfer user_id\nExample: /transfer 123456789')
+    "⚙️ **Usage:** `/transfer <user_id>`\n💡 **Example:** `/transfer 123456789`")
         return
     try:
         target_user_id = int(args[1])
@@ -110,12 +112,22 @@ async def transfer_premium_handler(event):
         expiry_ist = expiry_date + timedelta(hours=5, minutes=30)
         formatted_expiry = expiry_ist.strftime('%d-%b-%Y %I:%M:%S %p')
         await event.respond(
-            f'✅ Premium subscription successfully transferred to {target_name} ({target_user_id}). Your premium access has been removed.'
-            )
+            f"✅ **Premium Transfer Successful!**\n\n"
+            f"Your premium access has been successfully transferred to **{target_name}** (`{target_user_id}`).\n"
+            f"Your own premium privileges have now been deactivated."
+        )
+
         try:
-            await bot_client.send_message(target_user_id,
-                f'🎁 You have received a premium subscription transfer from {sender_name} ({user_id}). Your premium is valid until {formatted_expiry} (IST).'
-                )
+            await bot_client.send_message(
+                target_user_id,
+                f"""🎁 **Premium Subscription Received!**  
+
+            You have received a premium transfer from **{sender_name}** (`{user_id}`).  
+            📅 **Valid Until:** {formatted_expiry} _(IST)_  
+
+            Enjoy your premium access! 🚀"""
+            )
+
         except Exception as e:
             logger.error(f'Could not notify target user {target_user_id}: {e}')
         try:
@@ -397,12 +409,12 @@ async def redeem_handler(event):
     if not claim:
         existing = await redeem_codes_collection.find_one({"code": code})
         if not existing:
-            await event.respond("❌ Code not found. Please check and try again.")
+            await event.respond("❌ **Code Not Found**\nPlease double-check the code and try again.")
         else:
-            msg = "❌ This code has already been used."
+            msg = "❌ **Code Already Used**"
             ub = existing.get("used_by")
             if ub:
-                msg += f"\nUsed by: `{ub}`"
+                msg += f"\n👤 **Used By:** `{ub}`"
             await event.respond(msg)
         return
 
@@ -447,11 +459,15 @@ async def redeem_handler(event):
         for o in _owners_set():
             try:
                 await bot_client.send_message(
-                    o,
-                    f"♻️ User `{user_id}` redeemed `{code}` "
-                    f"(validity_days={validity_days}, source={claim.get('source') or '-'}) — "
-                    f"premium till {expiry_text}."
-                )
+                o,
+                f"♻️ **Code Redeemed By an User!**\n\n"
+                f"**User:** `{user_id}`\n"
+                f"**Code:** `{code}`\n"
+                f"**Validity:** {validity_days} days\n"
+                f"**Source:** {claim.get('source') or '-'}\n"
+                f"**Premium Valid Until:** {expiry_text}"
+            )
+
             except Exception:
                 pass
 

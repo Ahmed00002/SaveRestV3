@@ -57,8 +57,12 @@ Example: /add 123456 1 week"""
 Subscription valid until: {formatted_expiry} (IST)"""
                 )
             await bot_client.send_message(target_user_id,
-                f"""✅ Your have been added as premium member
-**Validity upto**: {formatted_expiry} (IST)"""
+                f"""🎉 **Premium Membership Activated!**
+
+                    You have been successfully upgraded to a premium member.
+                    📅 **Valid Until:** {formatted_expiry} _(IST)_
+
+                    Enjoy your premium benefits! 🚀"""
                 )
         else:
             await event.respond(f'❌ Failed to add premium user: {result}')

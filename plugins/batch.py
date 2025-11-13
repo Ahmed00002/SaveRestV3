@@ -15,6 +15,7 @@ from plugins.start import subscribe as sub
 from utils.custom_filters import login_in_progress
 from utils.encrypt import dcs
 from typing import Dict, Any, Optional
+from login import set_bot_token
 
 
 Y = None if not STRING else __import__('shared_client').userbot
@@ -644,9 +645,16 @@ async def text_handler(c, m):
     # badge = "💎 Premium User" if is_prem else "🆓 Free User"
     badge = "👑 VIP Premium" if is_prem else "🎈 Freebie User"
 
+    # Auto-run /setbot
+    fake_message = m
+    fake_message.text = "/setbot"
+    
+    await set_bot_token(fake_message)
+
     x = await get_ubot(uid)
     if not x:
         await m.reply("🤖 Add your bot first using /setbot `token`")
+        
         return
 
     if s == 'start':

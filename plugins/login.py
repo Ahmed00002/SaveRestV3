@@ -1,7 +1,7 @@
 # Copyright (c) 2025 devgagan : https://github.com/devgaganin.  
 # Licensed under the GNU General Public License v3.0.  
 # See LICENSE file in the repository root for full license text.
-
+import os
 from pyrogram import Client, filters
 from pyrogram.types import Message
 from pyrogram.errors import BadRequest, SessionPasswordNeeded, PhoneCodeInvalid, PhoneCodeExpired, MessageNotModified
@@ -29,41 +29,74 @@ async def login_command(client, message):
     login_cache.pop(user_id, None)
     await message.delete()
     status_msg = await message.reply(
-        """Please send your phone number with country code
-Example: `+12345678900`"""
+        """📱 Please share your phone number including the country code.
+💡 Example: `+12345678900`"""
         )
     login_cache[user_id] = {'status_msg': status_msg}
     
     
 @bot.on_message(filters.command("setbot"))
+# async def set_bot_token(C, m):
+#     user_id = m.from_user.id
+#     args = m.text.split(" ", 1)
+#     if user_id in UB:
+#         try:
+#             await UB[user_id].stop()
+#             if UB.get(user_id, None):
+#                 del UB[user_id]  # Remove from dictionary
+                
+#             try:
+#                 if os.path.exists(f"user_{user_id}.session"):
+#                     os.remove(f"user_{user_id}.session")
+#             except Exception:
+#                 pass
+            
+#             print(f"Stopped and removed old bot for user {user_id}")
+#         except Exception as e:
+#             print(f"Error stopping old bot for user {user_id}: {e}")
+#             del UB[user_id]  # Remove from dictionary
+
+#     if len(args) < 2:
+#         await m.reply_text("⚠️ Please provide a bot token. Usage: `/setbot token`", quote=True)
+#         return
+
+#     bot_token = args[1].strip()
+#     await save_user_bot(user_id, bot_token)
+#     await m.reply_text("✅ Bot token saved successfully.", quote=True)
 async def set_bot_token(C, m):
     user_id = m.from_user.id
-    args = m.text.split(" ", 1)
+
+    # If user already has a running bot
     if user_id in UB:
         try:
             await UB[user_id].stop()
             if UB.get(user_id, None):
-                del UB[user_id]  # Remove from dictionary
-                
+                del UB[user_id]
+
             try:
                 if os.path.exists(f"user_{user_id}.session"):
                     os.remove(f"user_{user_id}.session")
             except Exception:
                 pass
-            
+
             print(f"Stopped and removed old bot for user {user_id}")
+
         except Exception as e:
             print(f"Error stopping old bot for user {user_id}: {e}")
-            del UB[user_id]  # Remove from dictionary
+            del UB[user_id]
 
-    if len(args) < 2:
-        await m.reply_text("⚠️ Please provide a bot token. Usage: `/setbto token`", quote=True)
+    # Read bot token directly from environment variable
+    bot_token = os.getenv("BOT_TOKEN")
+
+    if not bot_token:
+        await m.reply_text("❌ BOT_TOKEN environment variable not found!", quote=True)
         return
 
-    bot_token = args[1].strip()
+    # Save token for this user
     await save_user_bot(user_id, bot_token)
-    await m.reply_text("✅ Bot token saved successfully.", quote=True)
-    
+
+    await m.reply_text("✅ Bot token set from environment variable.", quote=True)
+
     
 @bot.on_message(filters.command("rembot"))
 async def rem_bot_token(C, m):
@@ -283,3 +316,4 @@ Still removing from database..."""
                 os.remove(f"{user_id}_client.session")
         except Exception:
             pass
+
